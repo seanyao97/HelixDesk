@@ -1,879 +1,345 @@
-import sqlite3
-import os
-import json
-import uuid
+import sqlite3, os, json, uuid
 from datetime import datetime
 
+CFG_DIR = os.path.join(os.environ.get('APPDATA', os.path.expanduser('~')), 'HelixDesk')
+os.makedirs(CFG_DIR, exist_ok=True)
+CFG_PATH = os.path.join(CFG_DIR, 'config.json')
 
-def get_config_path():
-    app_data = os.environ.get('APPDATA', os.path.expanduser('~'))
-    config_dir = os.path.join(app_data, 'HelixDesk')
-    os.makedirs(config_dir, exist_ok=True)
-    return os.path.join(config_dir, 'config.json')
-
-
-def get_default_db_path():
-    app_data = os.environ.get('APPDATA', os.path.expanduser('~'))
-    data_dir = os.path.join(app_data, 'HelixDesk')
-    os.makedirs(data_dir, exist_ok=True)
-    return os.path.join(data_dir, 'helixdesk.db')
-
-
-def load_config():
-    config_path = get_config_path()
-    if os.path.exists(config_path):
-        with open(config_path, 'r', encoding='utf-8') as f:
+def _cfg():
+    try:
+        with open(CFG_PATH, encoding='utf-8') as f:
             return json.load(f)
-    return {}
+    except:
+        return {}
 
-
-def save_config(updates):
-    config_path = get_config_path()
-    config = load_config()
-    config.update(updates)
-    with open(config_path, 'w', encoding='utf-8') as f:
-        json.dump(config, f, indent=2, ensure_ascii=False)
-    return config
-
+def _save_cfg(u):
+    c = _cfg()
+    c.update(u)
+    with open(CFG_PATH, 'w', encoding='utf-8') as f:
+        json.dump(c, f, indent=2, ensure_ascii=False)
 
 def get_db_path():
-    config = load_config()
-    db_path = config.get('dbPath', '')
-    if db_path and os.path.exists(os.path.dirname(db_path)):
-        return db_path
-    return get_default_db_path()
+    c = _cfg()
+    p = c.get('dbPath', '')
+    if p and os.path.exists(os.path.dirname(p)):
+        return p
+    return os.path.join(CFG_DIR, 'helixdesk.db')
 
-
-def migrate_db(new_path):
-    old_path = get_db_path()
-    if old_path == new_path:
+def migrate_db(np):
+    op = get_db_path()
+    if op == np:
         return False
     try:
-        new_dir = os.path.dirname(new_path)
-        os.makedirs(new_dir, exist_ok=True)
-        if os.path.exists(old_path):
+        os.makedirs(os.path.dirname(np), exist_ok=True)
+        if os.path.exists(op):
             import shutil
-            shutil.copy2(old_path, new_path)
-        save_config({'dbPath': new_path})
+            shutil.copy2(op, np)
+        _save_cfg({'dbPath': np})
         return True
-    except Exception as e:
-        print(f'Migration failed: {e}')
+    except:
         return False
 
+def conn():
+    db = sqlite3.connect(get_db_path())
+    db.row_factory = sqlite3.Row
+    db.execute('PRAGMA foreign_keys = ON')
+    return db
 
-def get_connection():
-    db_path = get_db_path()
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    conn.execute('PRAGMA foreign_keys = ON')
-    return conn
-
-
-def init_db():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.executescript('''
+def init():
+    c = conn()
+    c.executescript('''
         CREATE TABLE IF NOT EXISTS projects (
-            id TEXT PRIMARY KEY,
-            name TEXT NOT NULL,
-            description TEXT DEFAULT '',
+            id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT DEFAULT '',
             created_at TEXT DEFAULT (datetime('now','localtime')),
-            updated_at TEXT DEFAULT (datetime('now','localtime'))
-        );
-
+            updated_at TEXT DEFAULT (datetime('now','localtime')));
         CREATE TABLE IF NOT EXISTS experiments (
-            id TEXT PRIMARY KEY,
-            project_id TEXT REFERENCES projects(id),
-            title TEXT NOT NULL,
-            purpose TEXT DEFAULT '',
+            id TEXT PRIMARY KEY, project_id TEXT REFERENCES projects(id),
+            title TEXT NOT NULL, purpose TEXT DEFAULT '',
             date TEXT DEFAULT (date('now','localtime')),
-            location TEXT DEFAULT '',
-            status TEXT DEFAULT 'draft',
+            location TEXT DEFAULT '', status TEXT DEFAULT 'draft',
             created_at TEXT DEFAULT (datetime('now','localtime')),
-            updated_at TEXT DEFAULT (datetime('now','localtime'))
-        );
-
+            updated_at TEXT DEFAULT (datetime('now','localtime')));
         CREATE TABLE IF NOT EXISTS steps (
-            id TEXT PRIMARY KEY,
-            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
-            title TEXT NOT NULL,
-            content TEXT DEFAULT '',
-            order_num INTEGER NOT NULL DEFAULT 0,
-            created_at TEXT DEFAULT (datetime('now','localtime'))
-        );
-
+            id TEXT PRIMARY KEY, experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
+            title TEXT NOT NULL, content TEXT DEFAULT '', order_num INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT (datetime('now','localtime')));
         CREATE TABLE IF NOT EXISTS results (
-            id TEXT PRIMARY KEY,
-            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
-            step_id TEXT,
-            type TEXT DEFAULT 'text',
-            content TEXT DEFAULT '',
-            created_at TEXT DEFAULT (datetime('now','localtime'))
-        );
-
+            id TEXT PRIMARY KEY, experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
+            step_id TEXT, type TEXT DEFAULT 'text', content TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now','localtime')));
         CREATE TABLE IF NOT EXISTS plans (
-            id TEXT PRIMARY KEY,
-            date TEXT NOT NULL,
-            experiment_id TEXT,
-            title TEXT NOT NULL,
-            done INTEGER DEFAULT 0,
-            created_at TEXT DEFAULT (datetime('now','localtime'))
-        );
-
+            id TEXT PRIMARY KEY, date TEXT NOT NULL, experiment_id TEXT,
+            title TEXT NOT NULL, done INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT (datetime('now','localtime')));
         CREATE TABLE IF NOT EXISTS materials (
-            id TEXT PRIMARY KEY,
-            name TEXT NOT NULL,
-            type TEXT DEFAULT '',
-            vendor TEXT DEFAULT '',
-            catalog TEXT DEFAULT '',
-            notes TEXT DEFAULT '',
-            created_at TEXT DEFAULT (datetime('now','localtime'))
-        );
-
+            id TEXT PRIMARY KEY, name TEXT NOT NULL, type TEXT DEFAULT '',
+            vendor TEXT DEFAULT '', catalog TEXT DEFAULT '', notes TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now','localtime')));
         CREATE TABLE IF NOT EXISTS experiment_materials (
             experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
-            material_id TEXT REFERENCES materials(id),
-            usage_text TEXT DEFAULT '',
-            PRIMARY KEY (experiment_id, material_id)
-        );
-    ''')
-
-    # 运行日志表
-    cursor.execute('''
+            material_id TEXT REFERENCES materials(id), usage_text TEXT DEFAULT '',
+            PRIMARY KEY (experiment_id, material_id));
         CREATE TABLE IF NOT EXISTS run_logs (
-            id TEXT PRIMARY KEY,
-            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
-            version INTEGER DEFAULT 1,
-            run_date TEXT DEFAULT (date('now','localtime')),
-            observations TEXT DEFAULT '',
-            deviations TEXT DEFAULT '',
-            conclusion TEXT DEFAULT '',
-            created_at TEXT DEFAULT (datetime('now','localtime'))
-        )
-    ''')
-
-    # 参数表
-    cursor.execute('''
+            id TEXT PRIMARY KEY, experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
+            version INTEGER DEFAULT 1, run_date TEXT, observations TEXT DEFAULT '',
+            deviations TEXT DEFAULT '', conclusion TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now','localtime')));
         CREATE TABLE IF NOT EXISTS parameters (
-            id TEXT PRIMARY KEY,
-            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
-            step_id TEXT,
-            name TEXT NOT NULL,
-            value TEXT DEFAULT '',
-            unit TEXT DEFAULT '',
-            created_at TEXT DEFAULT (datetime('now','localtime'))
-        )
+            id TEXT PRIMARY KEY, experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
+            step_id TEXT, name TEXT NOT NULL, value TEXT DEFAULT '', unit TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now','localtime')));
     ''')
-    conn.commit()
-    conn.close()
+    c.commit()
+    c.close()
 
-
-def new_id():
+def uid():
     return str(uuid.uuid4())
-
-
-# ====== 项目 ======
-
 def list_projects():
-    conn = get_connection()
-    rows = conn.execute('SELECT * FROM projects ORDER BY updated_at DESC').fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
+    c = conn()
+    r = [dict(x) for x in c.execute("SELECT * FROM projects ORDER BY updated_at DESC")]
+    c.close()
+    return r
 
-
-def create_project(name, description=''):
-    pid = new_id()
-    conn = get_connection()
-    conn.execute('INSERT INTO projects (id, name, description) VALUES (?, ?, ?)',
-                 (pid, name, description))
-
-    # 运行日志表
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS run_logs (
-            id TEXT PRIMARY KEY,
-            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
-            version INTEGER DEFAULT 1,
-            run_date TEXT DEFAULT (date('now','localtime')),
-            observations TEXT DEFAULT '',
-            deviations TEXT DEFAULT '',
-            conclusion TEXT DEFAULT '',
-            created_at TEXT DEFAULT (datetime('now','localtime'))
-        )
-    ''')
-
-    # 参数表
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS parameters (
-            id TEXT PRIMARY KEY,
-            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
-            step_id TEXT,
-            name TEXT NOT NULL,
-            value TEXT DEFAULT '',
-            unit TEXT DEFAULT '',
-            created_at TEXT DEFAULT (datetime('now','localtime'))
-        )
-    ''')
-    conn.commit()
-    row = conn.execute('SELECT * FROM projects WHERE id = ?', (pid,)).fetchone()
-    conn.close()
+def create_project(name, desc=""):
+    p = uid()
+    c = conn()
+    c.execute("INSERT INTO projects (id, name, description) VALUES (?, ?, ?)", (p, name, desc))
+    c.commit()
+    row = c.execute("SELECT * FROM projects WHERE id = ?", (p,)).fetchone()
+    c.close()
     return dict(row) if row else None
 
-
 def delete_project(pid):
-    conn = get_connection()
-    conn.execute('DELETE FROM results WHERE experiment_id IN (SELECT id FROM experiments WHERE project_id = ?)', (pid,))
-    conn.execute('DELETE FROM steps WHERE experiment_id IN (SELECT id FROM experiments WHERE project_id = ?)', (pid,))
-    conn.execute('DELETE FROM experiment_materials WHERE experiment_id IN (SELECT id FROM experiments WHERE project_id = ?)', (pid,))
-    conn.execute('DELETE FROM experiments WHERE project_id = ?', (pid,))
-    conn.execute('DELETE FROM projects WHERE id = ?', (pid,))
+    c = conn()
+    results = c.execute("SELECT id FROM experiments WHERE project_id = ?", (pid,)).fetchall()
+    for r in results:
+        eid = r["id"]
+        c.execute("DELETE FROM results WHERE experiment_id = ?", (eid,))
+        c.execute("DELETE FROM steps WHERE experiment_id = ?", (eid,))
+        c.execute("DELETE FROM experiment_materials WHERE experiment_id = ?", (eid,))
+        c.execute("DELETE FROM run_logs WHERE experiment_id = ?", (eid,))
+        c.execute("DELETE FROM parameters WHERE experiment_id = ?", (eid,))
+    c.execute("DELETE FROM experiments WHERE project_id = ?", (pid,))
+    c.execute("DELETE FROM plans WHERE experiment_id IN (SELECT id FROM experiments WHERE project_id = ?)", (pid,))
+    c.execute("DELETE FROM projects WHERE id = ?", (pid,))
+    c.commit()
+    c.close()
 
-    # 运行日志表
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS run_logs (
-            id TEXT PRIMARY KEY,
-            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
-            version INTEGER DEFAULT 1,
-            run_date TEXT DEFAULT (date('now','localtime')),
-            observations TEXT DEFAULT '',
-            deviations TEXT DEFAULT '',
-            conclusion TEXT DEFAULT '',
-            created_at TEXT DEFAULT (datetime('now','localtime'))
-        )
-    ''')
+def list_experiments(pid=None):
+    c = conn()
+    sql = "SELECT e.*, p.name as project_name FROM experiments e LEFT JOIN projects p ON e.project_id = p.id"
+    params = []
+    if pid:
+        sql += " WHERE e.project_id = ?"
+        params.append(pid)
+    sql += " ORDER BY e.date DESC, e.created_at DESC"
+    r = [dict(x) for x in c.execute(sql, params)]
+    c.close()
+    return r
 
-    # 参数表
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS parameters (
-            id TEXT PRIMARY KEY,
-            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
-            step_id TEXT,
-            name TEXT NOT NULL,
-            value TEXT DEFAULT '',
-            unit TEXT DEFAULT '',
-            created_at TEXT DEFAULT (datetime('now','localtime'))
-        )
-    ''')
-    conn.commit()
-    conn.close()
-
-
-# ====== 实验 ======
-
-def list_experiments(project_id=None):
-    conn = get_connection()
-    if project_id:
-        rows = conn.execute('''
-            SELECT e.*, p.name as project_name FROM experiments e
-            LEFT JOIN projects p ON e.project_id = p.id
-            WHERE e.project_id = ? ORDER BY e.date DESC, e.created_at DESC
-        ''', (project_id,)).fetchall()
-    else:
-        rows = conn.execute('''
-            SELECT e.*, p.name as project_name FROM experiments e
-            LEFT JOIN projects p ON e.project_id = p.id
-            ORDER BY e.date DESC, e.created_at DESC
-        ''').fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
-
-
-def create_experiment(project_id, title, purpose='', date=None, location=''):
-    eid = new_id()
+def create_experiment(pid, title, purpose="", date=None, location=""):
+    e = uid()
     if not date:
-        date = datetime.now().strftime('%Y-%m-%d')
-    conn = get_connection()
-    conn.execute('INSERT INTO experiments (id, project_id, title, purpose, date, location) VALUES (?, ?, ?, ?, ?, ?)',
-                 (eid, project_id, title, purpose, date, location))
-
-    # 运行日志表
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS run_logs (
-            id TEXT PRIMARY KEY,
-            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
-            version INTEGER DEFAULT 1,
-            run_date TEXT DEFAULT (date('now','localtime')),
-            observations TEXT DEFAULT '',
-            deviations TEXT DEFAULT '',
-            conclusion TEXT DEFAULT '',
-            created_at TEXT DEFAULT (datetime('now','localtime'))
-        )
-    ''')
-
-    # 参数表
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS parameters (
-            id TEXT PRIMARY KEY,
-            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
-            step_id TEXT,
-            name TEXT NOT NULL,
-            value TEXT DEFAULT '',
-            unit TEXT DEFAULT '',
-            created_at TEXT DEFAULT (datetime('now','localtime'))
-        )
-    ''')
-    conn.commit()
-    conn.close()
-    return get_experiment(eid)
-
+        date = datetime.now().strftime("%Y-%m-%d")
+    c = conn()
+    c.execute("INSERT INTO experiments (id, project_id, title, purpose, date, location) VALUES (?, ?, ?, ?, ?, ?)",
+              (e, pid, title, purpose, date, location))
+    c.commit()
+    c.close()
+    return get_experiment(e)
 
 def get_experiment(eid):
-    conn = get_connection()
-    row = conn.execute('''
-        SELECT e.*, p.name as project_name FROM experiments e
-        LEFT JOIN projects p ON e.project_id = p.id WHERE e.id = ?
-    ''', (eid,)).fetchone()
+    c = conn()
+    row = c.execute("""SELECT e.*, p.name as project_name FROM experiments e
+        LEFT JOIN projects p ON e.project_id = p.id WHERE e.id = ?""", (eid,)).fetchone()
     if not row:
-        conn.close()
+        c.close()
         return None
     exp = dict(row)
-    exp['steps'] = [dict(s) for s in conn.execute('SELECT * FROM steps WHERE experiment_id = ? ORDER BY order_num ASC', (eid,)).fetchall()]
-    exp['results'] = [dict(r) for r in conn.execute('SELECT * FROM results WHERE experiment_id = ? ORDER BY created_at ASC', (eid,)).fetchall()]
-    exp['materials'] = [dict(m) for m in conn.execute('''
-        SELECT m.*, em.usage_text FROM materials m
-        JOIN experiment_materials em ON m.id = em.material_id
-        WHERE em.experiment_id = ?
-    ''', (eid,)).fetchall()]
-    conn.close()
+    exp["steps"] = [dict(x) for x in c.execute("SELECT * FROM steps WHERE experiment_id = ? ORDER BY order_num ASC", (eid,))]
+    exp["results"] = [dict(x) for x in c.execute("SELECT * FROM results WHERE experiment_id = ? ORDER BY created_at ASC", (eid,))]
+    exp["materials"] = [dict(x) for x in c.execute("""SELECT m.*, em.usage_text FROM materials m
+        JOIN experiment_materials em ON m.id = em.material_id WHERE em.experiment_id = ?""", (eid,))]
+    exp["run_logs"] = [dict(x) for x in c.execute("SELECT * FROM run_logs WHERE experiment_id = ? ORDER BY version DESC", (eid,))]
+    exp["parameters"] = [dict(x) for x in c.execute("SELECT * FROM parameters WHERE experiment_id = ? ORDER BY name ASC", (eid,))]
+    c.close()
     return exp
-
 
 def update_experiment(eid, fields):
     sets = []
     vals = []
-    for key in ['title', 'purpose', 'date', 'location', 'status', 'project_id']:
-        if key in fields:
-            sets.append(f'{key} = ?')
-            vals.append(fields[key])
+    for k in ["title", "purpose", "date", "location", "status", "project_id"]:
+        if k in fields:
+            sets.append(f"{k} = ?")
+            vals.append(fields[k])
     if not sets:
         return get_experiment(eid)
     sets.append("updated_at = datetime('now','localtime')")
     vals.append(eid)
-    conn = get_connection()
-    conn.execute(f'UPDATE experiments SET {", ".join(sets)} WHERE id = ?', vals)
-
-    # 运行日志表
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS run_logs (
-            id TEXT PRIMARY KEY,
-            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
-            version INTEGER DEFAULT 1,
-            run_date TEXT DEFAULT (date('now','localtime')),
-            observations TEXT DEFAULT '',
-            deviations TEXT DEFAULT '',
-            conclusion TEXT DEFAULT '',
-            created_at TEXT DEFAULT (datetime('now','localtime'))
-        )
-    ''')
-
-    # 参数表
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS parameters (
-            id TEXT PRIMARY KEY,
-            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
-            step_id TEXT,
-            name TEXT NOT NULL,
-            value TEXT DEFAULT '',
-            unit TEXT DEFAULT '',
-            created_at TEXT DEFAULT (datetime('now','localtime'))
-        )
-    ''')
-    conn.commit()
-    conn.close()
+    c = conn()
+    c.execute(f"UPDATE experiments SET {', '.join(sets)} WHERE id = ?", vals)
+    c.commit()
+    c.close()
     return get_experiment(eid)
 
-
 def delete_experiment(eid):
-    conn = get_connection()
-    conn.execute('DELETE FROM results WHERE experiment_id = ?', (eid,))
-    conn.execute('DELETE FROM steps WHERE experiment_id = ?', (eid,))
-    conn.execute('DELETE FROM experiment_materials WHERE experiment_id = ?', (eid,))
-    conn.execute('DELETE FROM experiments WHERE id = ?', (eid,))
+    c = conn()
+    for t in ["results", "steps", "experiment_materials", "run_logs", "parameters", "experiments"]:
+        c.execute(f"DELETE FROM {t} WHERE experiment_id = ?", (eid,))
+    c.commit()
+    c.close()
 
-    # 运行日志表
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS run_logs (
-            id TEXT PRIMARY KEY,
-            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
-            version INTEGER DEFAULT 1,
-            run_date TEXT DEFAULT (date('now','localtime')),
-            observations TEXT DEFAULT '',
-            deviations TEXT DEFAULT '',
-            conclusion TEXT DEFAULT '',
-            created_at TEXT DEFAULT (datetime('now','localtime'))
-        )
-    ''')
-
-    # 参数表
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS parameters (
-            id TEXT PRIMARY KEY,
-            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
-            step_id TEXT,
-            name TEXT NOT NULL,
-            value TEXT DEFAULT '',
-            unit TEXT DEFAULT '',
-            created_at TEXT DEFAULT (datetime('now','localtime'))
-        )
-    ''')
-    conn.commit()
-    conn.close()
-
-
-# ====== 步骤 ======
-
-def add_step(experiment_id, title, content=''):
-    sid = new_id()
-    conn = get_connection()
-    max_order = conn.execute('SELECT COALESCE(MAX(order_num), -1) + 1 as next FROM steps WHERE experiment_id = ?',
-                             (experiment_id,)).fetchone()['next']
-    conn.execute('INSERT INTO steps (id, experiment_id, title, content, order_num) VALUES (?, ?, ?, ?, ?)',
-                 (sid, experiment_id, title, content, max_order))
-
-    # 运行日志表
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS run_logs (
-            id TEXT PRIMARY KEY,
-            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
-            version INTEGER DEFAULT 1,
-            run_date TEXT DEFAULT (date('now','localtime')),
-            observations TEXT DEFAULT '',
-            deviations TEXT DEFAULT '',
-            conclusion TEXT DEFAULT '',
-            created_at TEXT DEFAULT (datetime('now','localtime'))
-        )
-    ''')
-
-    # 参数表
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS parameters (
-            id TEXT PRIMARY KEY,
-            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
-            step_id TEXT,
-            name TEXT NOT NULL,
-            value TEXT DEFAULT '',
-            unit TEXT DEFAULT '',
-            created_at TEXT DEFAULT (datetime('now','localtime'))
-        )
-    ''')
-    conn.commit()
-    conn.close()
-    return {'id': sid, 'experiment_id': experiment_id, 'title': title, 'content': content, 'order_num': max_order}
-
+def add_step(eid, title, content=""):
+    s = uid()
+    c = conn()
+    n = c.execute("SELECT COALESCE(MAX(order_num), -1) + 1 as n FROM steps WHERE experiment_id = ?", (eid,)).fetchone()["n"]
+    c.execute("INSERT INTO steps (id, experiment_id, title, content, order_num) VALUES (?, ?, ?, ?, ?)", (s, eid, title, content, n))
+    c.commit()
+    c.close()
+    return {"id": s, "title": title}
 
 def delete_step(sid):
-    conn = get_connection()
-    conn.execute('DELETE FROM steps WHERE id = ?', (sid,))
+    c = conn()
+    c.execute("DELETE FROM steps WHERE id = ?", (sid,))
+    c.commit()
+    c.close()
 
-    # 运行日志表
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS run_logs (
-            id TEXT PRIMARY KEY,
-            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
-            version INTEGER DEFAULT 1,
-            run_date TEXT DEFAULT (date('now','localtime')),
-            observations TEXT DEFAULT '',
-            deviations TEXT DEFAULT '',
-            conclusion TEXT DEFAULT '',
-            created_at TEXT DEFAULT (datetime('now','localtime'))
-        )
-    ''')
-
-    # 参数表
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS parameters (
-            id TEXT PRIMARY KEY,
-            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
-            step_id TEXT,
-            name TEXT NOT NULL,
-            value TEXT DEFAULT '',
-            unit TEXT DEFAULT '',
-            created_at TEXT DEFAULT (datetime('now','localtime'))
-        )
-    ''')
-    conn.commit()
-    conn.close()
-
-
-# ====== 结果 ======
-
-def add_result(experiment_id, content, type='text', step_id=None):
-    rid = new_id()
-    conn = get_connection()
-    conn.execute('INSERT INTO results (id, experiment_id, step_id, type, content) VALUES (?, ?, ?, ?, ?)',
-                 (rid, experiment_id, step_id, type, content))
-
-    # 运行日志表
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS run_logs (
-            id TEXT PRIMARY KEY,
-            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
-            version INTEGER DEFAULT 1,
-            run_date TEXT DEFAULT (date('now','localtime')),
-            observations TEXT DEFAULT '',
-            deviations TEXT DEFAULT '',
-            conclusion TEXT DEFAULT '',
-            created_at TEXT DEFAULT (datetime('now','localtime'))
-        )
-    ''')
-
-    # 参数表
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS parameters (
-            id TEXT PRIMARY KEY,
-            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
-            step_id TEXT,
-            name TEXT NOT NULL,
-            value TEXT DEFAULT '',
-            unit TEXT DEFAULT '',
-            created_at TEXT DEFAULT (datetime('now','localtime'))
-        )
-    ''')
-    conn.commit()
-    conn.close()
-    return {'id': rid, 'experiment_id': experiment_id, 'content': content, 'type': type}
-
+def add_result(eid, content, typ="text", step_id=None):
+    r = uid()
+    c = conn()
+    c.execute("INSERT INTO results (id, experiment_id, step_id, type, content) VALUES (?, ?, ?, ?, ?)", (r, eid, step_id, typ, content))
+    c.commit()
+    c.close()
+    return {"id": r}
 
 def delete_result(rid):
-    conn = get_connection()
-    conn.execute('DELETE FROM results WHERE id = ?', (rid,))
-
-    # 运行日志表
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS run_logs (
-            id TEXT PRIMARY KEY,
-            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
-            version INTEGER DEFAULT 1,
-            run_date TEXT DEFAULT (date('now','localtime')),
-            observations TEXT DEFAULT '',
-            deviations TEXT DEFAULT '',
-            conclusion TEXT DEFAULT '',
-            created_at TEXT DEFAULT (datetime('now','localtime'))
-        )
-    ''')
-
-    # 参数表
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS parameters (
-            id TEXT PRIMARY KEY,
-            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
-            step_id TEXT,
-            name TEXT NOT NULL,
-            value TEXT DEFAULT '',
-            unit TEXT DEFAULT '',
-            created_at TEXT DEFAULT (datetime('now','localtime'))
-        )
-    ''')
-    conn.commit()
-    conn.close()
-
-
-# ====== 计划 ======
+    c = conn()
+    c.execute("DELETE FROM results WHERE id = ?", (rid,))
+    c.commit()
+    c.close()
 
 def list_plans(date=None):
-    conn = get_connection()
+    c = conn()
+    sql = "SELECT p.*, e.title as experiment_title FROM plans p LEFT JOIN experiments e ON p.experiment_id = e.id"
+    params = []
     if date:
-        rows = conn.execute('''
-            SELECT p.*, e.title as experiment_title FROM plans p
-            LEFT JOIN experiments e ON p.experiment_id = e.id
-            WHERE p.date = ? ORDER BY p.created_at ASC
-        ''', (date,)).fetchall()
-    else:
-        rows = conn.execute('''
-            SELECT p.*, e.title as experiment_title FROM plans p
-            LEFT JOIN experiments e ON p.experiment_id = e.id
-            ORDER BY p.date ASC, p.created_at ASC
-        ''').fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
-
+        sql += " WHERE p.date = ?"
+        params.append(date)
+    sql += " ORDER BY p.date ASC, p.created_at ASC"
+    r = [dict(x) for x in c.execute(sql, params)]
+    c.close()
+    return r
 
 def add_plan(date, title, experiment_id=None):
-    pid = new_id()
-    conn = get_connection()
-    conn.execute('INSERT INTO plans (id, date, experiment_id, title) VALUES (?, ?, ?, ?)',
-                 (pid, date, experiment_id, title))
-
-    # 运行日志表
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS run_logs (
-            id TEXT PRIMARY KEY,
-            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
-            version INTEGER DEFAULT 1,
-            run_date TEXT DEFAULT (date('now','localtime')),
-            observations TEXT DEFAULT '',
-            deviations TEXT DEFAULT '',
-            conclusion TEXT DEFAULT '',
-            created_at TEXT DEFAULT (datetime('now','localtime'))
-        )
-    ''')
-
-    # 参数表
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS parameters (
-            id TEXT PRIMARY KEY,
-            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
-            step_id TEXT,
-            name TEXT NOT NULL,
-            value TEXT DEFAULT '',
-            unit TEXT DEFAULT '',
-            created_at TEXT DEFAULT (datetime('now','localtime'))
-        )
-    ''')
-    conn.commit()
-    conn.close()
-    return {'id': pid, 'date': date, 'title': title, 'done': 0}
-
+    p = uid()
+    c = conn()
+    c.execute("INSERT INTO plans (id, date, experiment_id, title) VALUES (?, ?, ?, ?)", (p, date, experiment_id, title))
+    c.commit()
+    c.close()
+    return {"id": p, "title": title, "done": 0}
 
 def toggle_plan(pid):
-    conn = get_connection()
-    conn.execute('UPDATE plans SET done = CASE WHEN done THEN 0 ELSE 1 END WHERE id = ?', (pid,))
-
-    # 运行日志表
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS run_logs (
-            id TEXT PRIMARY KEY,
-            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
-            version INTEGER DEFAULT 1,
-            run_date TEXT DEFAULT (date('now','localtime')),
-            observations TEXT DEFAULT '',
-            deviations TEXT DEFAULT '',
-            conclusion TEXT DEFAULT '',
-            created_at TEXT DEFAULT (datetime('now','localtime'))
-        )
-    ''')
-
-    # 参数表
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS parameters (
-            id TEXT PRIMARY KEY,
-            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
-            step_id TEXT,
-            name TEXT NOT NULL,
-            value TEXT DEFAULT '',
-            unit TEXT DEFAULT '',
-            created_at TEXT DEFAULT (datetime('now','localtime'))
-        )
-    ''')
-    conn.commit()
-    row = conn.execute('SELECT * FROM plans WHERE id = ?', (pid,)).fetchone()
-    conn.close()
-    return dict(row) if row else None
-
+    c = conn()
+    c.execute("UPDATE plans SET done = CASE WHEN done THEN 0 ELSE 1 END WHERE id = ?", (pid,))
+    c.commit()
+    row = c.execute("SELECT * FROM plans WHERE id = ?", (pid,)).fetchone()
+    c.close()
+    return dict(row)
 
 def delete_plan(pid):
-    conn = get_connection()
-    conn.execute('DELETE FROM plans WHERE id = ?', (pid,))
-
-    # 运行日志表
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS run_logs (
-            id TEXT PRIMARY KEY,
-            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
-            version INTEGER DEFAULT 1,
-            run_date TEXT DEFAULT (date('now','localtime')),
-            observations TEXT DEFAULT '',
-            deviations TEXT DEFAULT '',
-            conclusion TEXT DEFAULT '',
-            created_at TEXT DEFAULT (datetime('now','localtime'))
-        )
-    ''')
-
-    # 参数表
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS parameters (
-            id TEXT PRIMARY KEY,
-            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
-            step_id TEXT,
-            name TEXT NOT NULL,
-            value TEXT DEFAULT '',
-            unit TEXT DEFAULT '',
-            created_at TEXT DEFAULT (datetime('now','localtime'))
-        )
-    ''')
-    conn.commit()
-    conn.close()
-
-
-# ====== 材料 ======
+    c = conn()
+    c.execute("DELETE FROM plans WHERE id = ?", (pid,))
+    c.commit()
+    c.close()
 
 def list_materials():
-    conn = get_connection()
-    rows = conn.execute('SELECT * FROM materials ORDER BY name ASC').fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
+    c = conn()
+    r = [dict(x) for x in c.execute("SELECT * FROM materials ORDER BY name ASC")]
+    c.close()
+    return r
 
+def create_material(name, typ="", vendor="", catalog="", notes=""):
+    m = uid()
+    c = conn()
+    c.execute("INSERT INTO materials (id, name, type, vendor, catalog, notes) VALUES (?, ?, ?, ?, ?, ?)", (m, name, typ, vendor, catalog, notes))
+    c.commit()
+    c.close()
+    return {"id": m, "name": name}
 
-def create_material(name, type='', vendor='', catalog='', notes=''):
-    mid = new_id()
-    conn = get_connection()
-    conn.execute('INSERT INTO materials (id, name, type, vendor, catalog, notes) VALUES (?, ?, ?, ?, ?, ?)',
-                 (mid, name, type, vendor, catalog, notes))
+def link_material(eid, mid, usage=""):
+    c = conn()
+    c.execute("INSERT OR REPLACE INTO experiment_materials VALUES (?, ?, ?)", (eid, mid, usage))
+    c.commit()
+    c.close()
 
-    # 运行日志表
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS run_logs (
-            id TEXT PRIMARY KEY,
-            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
-            version INTEGER DEFAULT 1,
-            run_date TEXT DEFAULT (date('now','localtime')),
-            observations TEXT DEFAULT '',
-            deviations TEXT DEFAULT '',
-            conclusion TEXT DEFAULT '',
-            created_at TEXT DEFAULT (datetime('now','localtime'))
-        )
-    ''')
+def add_run_log(eid, obs="", dev="", con="", ver=1, rd=None):
+    r = uid()
+    if not rd:
+        rd = datetime.now().strftime("%Y-%m-%d")
+    c = conn()
+    c.execute("INSERT INTO run_logs (id, experiment_id, version, run_date, observations, deviations, conclusion) VALUES (?, ?, ?, ?, ?, ?, ?)",
+              (r, eid, ver, rd, obs, dev, con))
+    c.commit()
+    c.close()
+    return {"id": r}
 
-    # 参数表
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS parameters (
-            id TEXT PRIMARY KEY,
-            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
-            step_id TEXT,
-            name TEXT NOT NULL,
-            value TEXT DEFAULT '',
-            unit TEXT DEFAULT '',
-            created_at TEXT DEFAULT (datetime('now','localtime'))
-        )
-    ''')
-    conn.commit()
-    conn.close()
-    return {'id': mid, 'name': name, 'type': type}
-
-
-def link_material_to_experiment(experiment_id, material_id, usage=''):
-    conn = get_connection()
-    conn.execute('INSERT OR REPLACE INTO experiment_materials (experiment_id, material_id, usage_text) VALUES (?, ?, ?)',
-                 (experiment_id, material_id, usage))
-
-    # 运行日志表
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS run_logs (
-            id TEXT PRIMARY KEY,
-            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
-            version INTEGER DEFAULT 1,
-            run_date TEXT DEFAULT (date('now','localtime')),
-            observations TEXT DEFAULT '',
-            deviations TEXT DEFAULT '',
-            conclusion TEXT DEFAULT '',
-            created_at TEXT DEFAULT (datetime('now','localtime'))
-        )
-    ''')
-
-    # 参数表
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS parameters (
-            id TEXT PRIMARY KEY,
-            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
-            step_id TEXT,
-            name TEXT NOT NULL,
-            value TEXT DEFAULT '',
-            unit TEXT DEFAULT '',
-            created_at TEXT DEFAULT (datetime('now','localtime'))
-        )
-    ''')
-    conn.commit()
-    conn.close()
-
-
-# ====== 搜索 ======
-
-def search(query):
-    q = f'%{query}%'
-    conn = get_connection()
-    exps = [dict(r) for r in conn.execute('''
-        SELECT e.*, p.name as project_name FROM experiments e
-        LEFT JOIN projects p ON e.project_id = p.id
-        WHERE e.title LIKE ? OR e.purpose LIKE ? ORDER BY e.updated_at DESC
-    ''', (q, q)).fetchall()]
-
-    steps = [dict(r) for r in conn.execute('''
-        SELECT s.*, e.title as experiment_title FROM steps s
-        JOIN experiments e ON s.experiment_id = e.id
-        WHERE s.title LIKE ? OR s.content LIKE ? ORDER BY s.order_num ASC
-    ''', (q, q)).fetchall()]
-
-    mats = [dict(r) for r in conn.execute('''
-        SELECT * FROM materials WHERE name LIKE ? OR type LIKE ? ORDER BY name ASC
-    ''', (q, q)).fetchall()]
-
-    conn.close()
-    return {'experiments': exps, 'steps': steps, 'materials': mats}
-# ====== 运行日志 ======
-
-def add_run_log(experiment_id, observations="", deviations="", conclusion="", version=1, run_date=None):
-    rid = new_id()
-    if not run_date:
-        run_date = datetime.now().strftime("%Y-%m-%d")
-    conn = get_connection()
-    conn.execute("INSERT INTO run_logs (id, experiment_id, version, run_date, observations, deviations, conclusion) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                 (rid, experiment_id, version, run_date, observations, deviations, conclusion))
-    conn.commit()
-    conn.close()
-    return {"id": rid, "experiment_id": experiment_id, "version": version}
-
-
-def list_run_logs(experiment_id):
-    conn = get_connection()
-    rows = conn.execute("SELECT * FROM run_logs WHERE experiment_id = ? ORDER BY version DESC, created_at DESC", (experiment_id,)).fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
-
+def list_run_logs(eid):
+    c = conn()
+    r = [dict(x) for x in c.execute("SELECT * FROM run_logs WHERE experiment_id = ? ORDER BY version DESC", (eid,))]
+    c.close()
+    return r
 
 def delete_run_log(rid):
-    conn = get_connection()
-    conn.execute("DELETE FROM run_logs WHERE id = ?", (rid,))
-    conn.commit()
-    conn.close()
+    c = conn()
+    c.execute("DELETE FROM run_logs WHERE id = ?", (rid,))
+    c.commit()
+    c.close()
 
+def add_param(eid, name, value="", unit=""):
+    p = uid()
+    c = conn()
+    c.execute("INSERT INTO parameters (id, experiment_id, name, value, unit) VALUES (?, ?, ?, ?, ?)", (p, eid, name, value, unit))
+    c.commit()
+    c.close()
+    return {"id": p}
 
-# ====== 参数管理 ======
+def list_params(eid):
+    c = conn()
+    r = [dict(x) for x in c.execute("SELECT * FROM parameters WHERE experiment_id = ? ORDER BY name ASC", (eid,))]
+    c.close()
+    return r
 
-def add_parameter(experiment_id, name, value="", unit="", step_id=None):
-    pid = new_id()
-    conn = get_connection()
-    conn.execute("INSERT INTO parameters (id, experiment_id, step_id, name, value, unit) VALUES (?, ?, ?, ?, ?, ?)",
-                 (pid, experiment_id, step_id, name, value, unit))
-    conn.commit()
-    conn.close()
-    return {"id": pid, "name": name}
+def delete_param(pid):
+    c = conn()
+    c.execute("DELETE FROM parameters WHERE id = ?", (pid,))
+    c.commit()
+    c.close()
 
+def search(q):
+    q = f"%{q}%"
+    c = conn()
+    exps = [dict(x) for x in c.execute("""SELECT e.*, p.name as project_name FROM experiments e
+        LEFT JOIN projects p ON e.project_id = p.id WHERE e.title LIKE ? OR e.purpose LIKE ?""", (q, q))]
+    steps = [dict(x) for x in c.execute("""SELECT s.*, e.title as experiment_title FROM steps s
+        JOIN experiments e ON s.experiment_id = e.id WHERE s.title LIKE ? OR s.content LIKE ?""", (q, q))]
+    mats = [dict(x) for x in c.execute("SELECT * FROM materials WHERE name LIKE ? OR type LIKE ?", (q, q))]
+    c.close()
+    return {"experiments": exps, "steps": steps, "materials": mats}
 
-def list_parameters(experiment_id):
-    conn = get_connection()
-    rows = conn.execute("SELECT * FROM parameters WHERE experiment_id = ? ORDER BY name ASC", (experiment_id,)).fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
-
-
-def delete_parameter(pid):
-    conn = get_connection()
-    conn.execute("DELETE FROM parameters WHERE id = ?", (pid,))
-    conn.commit()
-    conn.close()
-
-
-# ====== 导出 ======
-
-def export_experiment_markdown(eid):
-    """导出实验为 Markdown 格式"""
+def export_markdown(eid):
     exp = get_experiment(eid)
     if not exp:
         return ""
-
-    lines = []
-    lines.append(f"# {exp['title']}")
-    lines.append("")
+    lines = [f"# {exp['title']}", ""]
     if exp.get("purpose"):
-        lines.append(f"**实验目的：** {exp['purpose']}")
+        lines.append(f"**目的：** {exp['purpose']}")
         lines.append("")
     lines.append(f"- **日期：** {exp.get('date', '')}")
     lines.append(f"- **地点：** {exp.get('location', '')}")
-    lines.append(f"- **状态：** {status_label(exp.get('status', 'draft'))}")
-    lines.append(f"- **项目：** {exp.get('project_name', '')}")
-    lines.append("")
-
+    smap = {"draft": "草稿", "submitted": "已提交", "archived": "已归档"}
+    lines.append(f"- **状态：** {smap.get(exp.get(chr(115)+chr(116)+chr(97)+chr(116)+chr(117)+chr(115), chr(33)), chr(33))}")
     if exp.get("steps"):
-        lines.append("## 实验步骤")
+        lines.append("## 步骤")
         lines.append("")
         for i, s in enumerate(exp["steps"]):
             lines.append(f"### {i+1}. {s['title']}")
@@ -881,42 +347,30 @@ def export_experiment_markdown(eid):
                 lines.append("")
                 lines.append(s["content"])
             lines.append("")
-
-    # 参数
-    params = list_parameters(eid)
-    if params:
+    if exp.get("parameters"):
         lines.append("## 参数")
         lines.append("")
         lines.append("| 名称 | 值 | 单位 |")
         lines.append("|------|-----|------|")
-        for p in params:
+        for p in exp["parameters"]:
             lines.append(f"| {p['name']} | {p['value']} | {p['unit']} |")
         lines.append("")
-
-    # 运行日志
-    logs = list_run_logs(eid)
-    if logs:
+    if exp.get("run_logs"):
         lines.append("## 运行日志")
         lines.append("")
-        for log in logs:
+        for log in exp["run_logs"]:
             lines.append(f"### v{log['version']} ({log.get('run_date', '')})")
             if log.get("observations"):
-                lines.append(f"- **观察：** {log['observations']}")
+                lines.append(f"- 观察：{log['observations']}")
             if log.get("deviations"):
-                lines.append(f"- **偏差：** {log['deviations']}")
+                lines.append(f"- 偏差：{log['deviations']}")
             if log.get("conclusion"):
-                lines.append(f"- **结论：** {log['conclusion']}")
+                lines.append(f"- 结论：{log['conclusion']}")
             lines.append("")
-
     if exp.get("results"):
         lines.append("## 结果")
         lines.append("")
         for r in exp["results"]:
             lines.append(f"- {r['content']}")
         lines.append("")
-
     return "\n".join(lines)
-
-
-def status_label(s):
-    return {"draft": "草稿", "submitted": "已提交", "archived": "已归档"}.get(s, s)

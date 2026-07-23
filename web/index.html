@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HelixDesk Web</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+    <!-- 顶部栏 -->
+    <header id="topbar">
+      <div class="topbar-left">
+        <span class="logo">🧬</span>
+        <span class="logo-text">HelixDesk</span>
+        <span class="badge-version">Web</span>
+      </div>
+      <nav class="topbar-nav">
+        <button class="nav-tab active" data-view="plan">📅 计划表</button>
+        <button class="nav-tab" data-view="experiments">🧪 实验</button>
+        <button class="nav-tab" data-view="materials">🧫 材料</button>
+        <button class="nav-tab" data-view="settings">⚙️ 设置</button>
+      </nav>
+      <div class="topbar-right">
+        <div class="search-box">
+          <input type="text" id="search-input" placeholder="搜索..." />
+          <button id="search-btn">🔍</button>
+        </div>
+      </div>
+    </header>
+
+    <div id="main">
+      <!-- 左侧栏 -->
+      <aside id="sidebar">
+        <div class="sidebar-header">
+          <span class="sidebar-title">📁 项目</span>
+          <button class="btn-icon" onclick="showNewProject()" title="新建项目">＋</button>
+        </div>
+        <ul id="project-list"></ul>
+      </aside>
+
+      <!-- 内容区 -->
+      <main id="content">
+        <div id="view-container"></div>
+      </main>
+    </div>
+  </div>
+
+  <!-- 模态框 -->
+  <div id="modal-overlay" class="modal-overlay" onclick="closeModal()"></div>
+  <div id="modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modal-title"></h3>
+        <button class="modal-close" onclick="closeModal()">✕</button>
+      </div>
+      <div class="modal-body" id="modal-body"></div>
+      <div class="modal-footer" id="modal-footer"></div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

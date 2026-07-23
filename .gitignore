@@ -24,3 +24,10 @@ venv/
 # Database (user data, but keep config)
 *.db
 config.json
+# Backup
+*.bak
+
+# PyInstaller
+*.spec
+build/
+dist/
