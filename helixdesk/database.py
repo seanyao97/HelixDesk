@@ -137,6 +137,33 @@ def init_db():
             PRIMARY KEY (experiment_id, material_id)
         );
     ''')
+
+    # 运行日志表
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS run_logs (
+            id TEXT PRIMARY KEY,
+            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
+            version INTEGER DEFAULT 1,
+            run_date TEXT DEFAULT (date('now','localtime')),
+            observations TEXT DEFAULT '',
+            deviations TEXT DEFAULT '',
+            conclusion TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now','localtime'))
+        )
+    ''')
+
+    # 参数表
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS parameters (
+            id TEXT PRIMARY KEY,
+            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
+            step_id TEXT,
+            name TEXT NOT NULL,
+            value TEXT DEFAULT '',
+            unit TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now','localtime'))
+        )
+    ''')
     conn.commit()
     conn.close()
 
@@ -159,6 +186,33 @@ def create_project(name, description=''):
     conn = get_connection()
     conn.execute('INSERT INTO projects (id, name, description) VALUES (?, ?, ?)',
                  (pid, name, description))
+
+    # 运行日志表
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS run_logs (
+            id TEXT PRIMARY KEY,
+            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
+            version INTEGER DEFAULT 1,
+            run_date TEXT DEFAULT (date('now','localtime')),
+            observations TEXT DEFAULT '',
+            deviations TEXT DEFAULT '',
+            conclusion TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now','localtime'))
+        )
+    ''')
+
+    # 参数表
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS parameters (
+            id TEXT PRIMARY KEY,
+            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
+            step_id TEXT,
+            name TEXT NOT NULL,
+            value TEXT DEFAULT '',
+            unit TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now','localtime'))
+        )
+    ''')
     conn.commit()
     row = conn.execute('SELECT * FROM projects WHERE id = ?', (pid,)).fetchone()
     conn.close()
@@ -172,6 +226,33 @@ def delete_project(pid):
     conn.execute('DELETE FROM experiment_materials WHERE experiment_id IN (SELECT id FROM experiments WHERE project_id = ?)', (pid,))
     conn.execute('DELETE FROM experiments WHERE project_id = ?', (pid,))
     conn.execute('DELETE FROM projects WHERE id = ?', (pid,))
+
+    # 运行日志表
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS run_logs (
+            id TEXT PRIMARY KEY,
+            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
+            version INTEGER DEFAULT 1,
+            run_date TEXT DEFAULT (date('now','localtime')),
+            observations TEXT DEFAULT '',
+            deviations TEXT DEFAULT '',
+            conclusion TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now','localtime'))
+        )
+    ''')
+
+    # 参数表
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS parameters (
+            id TEXT PRIMARY KEY,
+            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
+            step_id TEXT,
+            name TEXT NOT NULL,
+            value TEXT DEFAULT '',
+            unit TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now','localtime'))
+        )
+    ''')
     conn.commit()
     conn.close()
 
@@ -203,6 +284,33 @@ def create_experiment(project_id, title, purpose='', date=None, location=''):
     conn = get_connection()
     conn.execute('INSERT INTO experiments (id, project_id, title, purpose, date, location) VALUES (?, ?, ?, ?, ?, ?)',
                  (eid, project_id, title, purpose, date, location))
+
+    # 运行日志表
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS run_logs (
+            id TEXT PRIMARY KEY,
+            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
+            version INTEGER DEFAULT 1,
+            run_date TEXT DEFAULT (date('now','localtime')),
+            observations TEXT DEFAULT '',
+            deviations TEXT DEFAULT '',
+            conclusion TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now','localtime'))
+        )
+    ''')
+
+    # 参数表
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS parameters (
+            id TEXT PRIMARY KEY,
+            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
+            step_id TEXT,
+            name TEXT NOT NULL,
+            value TEXT DEFAULT '',
+            unit TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now','localtime'))
+        )
+    ''')
     conn.commit()
     conn.close()
     return get_experiment(eid)
@@ -242,6 +350,33 @@ def update_experiment(eid, fields):
     vals.append(eid)
     conn = get_connection()
     conn.execute(f'UPDATE experiments SET {", ".join(sets)} WHERE id = ?', vals)
+
+    # 运行日志表
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS run_logs (
+            id TEXT PRIMARY KEY,
+            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
+            version INTEGER DEFAULT 1,
+            run_date TEXT DEFAULT (date('now','localtime')),
+            observations TEXT DEFAULT '',
+            deviations TEXT DEFAULT '',
+            conclusion TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now','localtime'))
+        )
+    ''')
+
+    # 参数表
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS parameters (
+            id TEXT PRIMARY KEY,
+            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
+            step_id TEXT,
+            name TEXT NOT NULL,
+            value TEXT DEFAULT '',
+            unit TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now','localtime'))
+        )
+    ''')
     conn.commit()
     conn.close()
     return get_experiment(eid)
@@ -253,6 +388,33 @@ def delete_experiment(eid):
     conn.execute('DELETE FROM steps WHERE experiment_id = ?', (eid,))
     conn.execute('DELETE FROM experiment_materials WHERE experiment_id = ?', (eid,))
     conn.execute('DELETE FROM experiments WHERE id = ?', (eid,))
+
+    # 运行日志表
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS run_logs (
+            id TEXT PRIMARY KEY,
+            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
+            version INTEGER DEFAULT 1,
+            run_date TEXT DEFAULT (date('now','localtime')),
+            observations TEXT DEFAULT '',
+            deviations TEXT DEFAULT '',
+            conclusion TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now','localtime'))
+        )
+    ''')
+
+    # 参数表
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS parameters (
+            id TEXT PRIMARY KEY,
+            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
+            step_id TEXT,
+            name TEXT NOT NULL,
+            value TEXT DEFAULT '',
+            unit TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now','localtime'))
+        )
+    ''')
     conn.commit()
     conn.close()
 
@@ -266,6 +428,33 @@ def add_step(experiment_id, title, content=''):
                              (experiment_id,)).fetchone()['next']
     conn.execute('INSERT INTO steps (id, experiment_id, title, content, order_num) VALUES (?, ?, ?, ?, ?)',
                  (sid, experiment_id, title, content, max_order))
+
+    # 运行日志表
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS run_logs (
+            id TEXT PRIMARY KEY,
+            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
+            version INTEGER DEFAULT 1,
+            run_date TEXT DEFAULT (date('now','localtime')),
+            observations TEXT DEFAULT '',
+            deviations TEXT DEFAULT '',
+            conclusion TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now','localtime'))
+        )
+    ''')
+
+    # 参数表
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS parameters (
+            id TEXT PRIMARY KEY,
+            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
+            step_id TEXT,
+            name TEXT NOT NULL,
+            value TEXT DEFAULT '',
+            unit TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now','localtime'))
+        )
+    ''')
     conn.commit()
     conn.close()
     return {'id': sid, 'experiment_id': experiment_id, 'title': title, 'content': content, 'order_num': max_order}
@@ -274,6 +463,33 @@ def add_step(experiment_id, title, content=''):
 def delete_step(sid):
     conn = get_connection()
     conn.execute('DELETE FROM steps WHERE id = ?', (sid,))
+
+    # 运行日志表
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS run_logs (
+            id TEXT PRIMARY KEY,
+            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
+            version INTEGER DEFAULT 1,
+            run_date TEXT DEFAULT (date('now','localtime')),
+            observations TEXT DEFAULT '',
+            deviations TEXT DEFAULT '',
+            conclusion TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now','localtime'))
+        )
+    ''')
+
+    # 参数表
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS parameters (
+            id TEXT PRIMARY KEY,
+            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
+            step_id TEXT,
+            name TEXT NOT NULL,
+            value TEXT DEFAULT '',
+            unit TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now','localtime'))
+        )
+    ''')
     conn.commit()
     conn.close()
 
@@ -285,6 +501,33 @@ def add_result(experiment_id, content, type='text', step_id=None):
     conn = get_connection()
     conn.execute('INSERT INTO results (id, experiment_id, step_id, type, content) VALUES (?, ?, ?, ?, ?)',
                  (rid, experiment_id, step_id, type, content))
+
+    # 运行日志表
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS run_logs (
+            id TEXT PRIMARY KEY,
+            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
+            version INTEGER DEFAULT 1,
+            run_date TEXT DEFAULT (date('now','localtime')),
+            observations TEXT DEFAULT '',
+            deviations TEXT DEFAULT '',
+            conclusion TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now','localtime'))
+        )
+    ''')
+
+    # 参数表
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS parameters (
+            id TEXT PRIMARY KEY,
+            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
+            step_id TEXT,
+            name TEXT NOT NULL,
+            value TEXT DEFAULT '',
+            unit TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now','localtime'))
+        )
+    ''')
     conn.commit()
     conn.close()
     return {'id': rid, 'experiment_id': experiment_id, 'content': content, 'type': type}
@@ -293,6 +536,33 @@ def add_result(experiment_id, content, type='text', step_id=None):
 def delete_result(rid):
     conn = get_connection()
     conn.execute('DELETE FROM results WHERE id = ?', (rid,))
+
+    # 运行日志表
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS run_logs (
+            id TEXT PRIMARY KEY,
+            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
+            version INTEGER DEFAULT 1,
+            run_date TEXT DEFAULT (date('now','localtime')),
+            observations TEXT DEFAULT '',
+            deviations TEXT DEFAULT '',
+            conclusion TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now','localtime'))
+        )
+    ''')
+
+    # 参数表
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS parameters (
+            id TEXT PRIMARY KEY,
+            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
+            step_id TEXT,
+            name TEXT NOT NULL,
+            value TEXT DEFAULT '',
+            unit TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now','localtime'))
+        )
+    ''')
     conn.commit()
     conn.close()
 
@@ -322,6 +592,33 @@ def add_plan(date, title, experiment_id=None):
     conn = get_connection()
     conn.execute('INSERT INTO plans (id, date, experiment_id, title) VALUES (?, ?, ?, ?)',
                  (pid, date, experiment_id, title))
+
+    # 运行日志表
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS run_logs (
+            id TEXT PRIMARY KEY,
+            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
+            version INTEGER DEFAULT 1,
+            run_date TEXT DEFAULT (date('now','localtime')),
+            observations TEXT DEFAULT '',
+            deviations TEXT DEFAULT '',
+            conclusion TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now','localtime'))
+        )
+    ''')
+
+    # 参数表
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS parameters (
+            id TEXT PRIMARY KEY,
+            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
+            step_id TEXT,
+            name TEXT NOT NULL,
+            value TEXT DEFAULT '',
+            unit TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now','localtime'))
+        )
+    ''')
     conn.commit()
     conn.close()
     return {'id': pid, 'date': date, 'title': title, 'done': 0}
@@ -330,6 +627,33 @@ def add_plan(date, title, experiment_id=None):
 def toggle_plan(pid):
     conn = get_connection()
     conn.execute('UPDATE plans SET done = CASE WHEN done THEN 0 ELSE 1 END WHERE id = ?', (pid,))
+
+    # 运行日志表
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS run_logs (
+            id TEXT PRIMARY KEY,
+            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
+            version INTEGER DEFAULT 1,
+            run_date TEXT DEFAULT (date('now','localtime')),
+            observations TEXT DEFAULT '',
+            deviations TEXT DEFAULT '',
+            conclusion TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now','localtime'))
+        )
+    ''')
+
+    # 参数表
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS parameters (
+            id TEXT PRIMARY KEY,
+            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
+            step_id TEXT,
+            name TEXT NOT NULL,
+            value TEXT DEFAULT '',
+            unit TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now','localtime'))
+        )
+    ''')
     conn.commit()
     row = conn.execute('SELECT * FROM plans WHERE id = ?', (pid,)).fetchone()
     conn.close()
@@ -339,6 +663,33 @@ def toggle_plan(pid):
 def delete_plan(pid):
     conn = get_connection()
     conn.execute('DELETE FROM plans WHERE id = ?', (pid,))
+
+    # 运行日志表
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS run_logs (
+            id TEXT PRIMARY KEY,
+            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
+            version INTEGER DEFAULT 1,
+            run_date TEXT DEFAULT (date('now','localtime')),
+            observations TEXT DEFAULT '',
+            deviations TEXT DEFAULT '',
+            conclusion TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now','localtime'))
+        )
+    ''')
+
+    # 参数表
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS parameters (
+            id TEXT PRIMARY KEY,
+            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
+            step_id TEXT,
+            name TEXT NOT NULL,
+            value TEXT DEFAULT '',
+            unit TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now','localtime'))
+        )
+    ''')
     conn.commit()
     conn.close()
 
@@ -357,6 +708,33 @@ def create_material(name, type='', vendor='', catalog='', notes=''):
     conn = get_connection()
     conn.execute('INSERT INTO materials (id, name, type, vendor, catalog, notes) VALUES (?, ?, ?, ?, ?, ?)',
                  (mid, name, type, vendor, catalog, notes))
+
+    # 运行日志表
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS run_logs (
+            id TEXT PRIMARY KEY,
+            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
+            version INTEGER DEFAULT 1,
+            run_date TEXT DEFAULT (date('now','localtime')),
+            observations TEXT DEFAULT '',
+            deviations TEXT DEFAULT '',
+            conclusion TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now','localtime'))
+        )
+    ''')
+
+    # 参数表
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS parameters (
+            id TEXT PRIMARY KEY,
+            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
+            step_id TEXT,
+            name TEXT NOT NULL,
+            value TEXT DEFAULT '',
+            unit TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now','localtime'))
+        )
+    ''')
     conn.commit()
     conn.close()
     return {'id': mid, 'name': name, 'type': type}
@@ -366,6 +744,33 @@ def link_material_to_experiment(experiment_id, material_id, usage=''):
     conn = get_connection()
     conn.execute('INSERT OR REPLACE INTO experiment_materials (experiment_id, material_id, usage_text) VALUES (?, ?, ?)',
                  (experiment_id, material_id, usage))
+
+    # 运行日志表
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS run_logs (
+            id TEXT PRIMARY KEY,
+            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
+            version INTEGER DEFAULT 1,
+            run_date TEXT DEFAULT (date('now','localtime')),
+            observations TEXT DEFAULT '',
+            deviations TEXT DEFAULT '',
+            conclusion TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now','localtime'))
+        )
+    ''')
+
+    # 参数表
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS parameters (
+            id TEXT PRIMARY KEY,
+            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE,
+            step_id TEXT,
+            name TEXT NOT NULL,
+            value TEXT DEFAULT '',
+            unit TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now','localtime'))
+        )
+    ''')
     conn.commit()
     conn.close()
 
@@ -393,3 +798,125 @@ def search(query):
 
     conn.close()
     return {'experiments': exps, 'steps': steps, 'materials': mats}
+# ====== 运行日志 ======
+
+def add_run_log(experiment_id, observations="", deviations="", conclusion="", version=1, run_date=None):
+    rid = new_id()
+    if not run_date:
+        run_date = datetime.now().strftime("%Y-%m-%d")
+    conn = get_connection()
+    conn.execute("INSERT INTO run_logs (id, experiment_id, version, run_date, observations, deviations, conclusion) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                 (rid, experiment_id, version, run_date, observations, deviations, conclusion))
+    conn.commit()
+    conn.close()
+    return {"id": rid, "experiment_id": experiment_id, "version": version}
+
+
+def list_run_logs(experiment_id):
+    conn = get_connection()
+    rows = conn.execute("SELECT * FROM run_logs WHERE experiment_id = ? ORDER BY version DESC, created_at DESC", (experiment_id,)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def delete_run_log(rid):
+    conn = get_connection()
+    conn.execute("DELETE FROM run_logs WHERE id = ?", (rid,))
+    conn.commit()
+    conn.close()
+
+
+# ====== 参数管理 ======
+
+def add_parameter(experiment_id, name, value="", unit="", step_id=None):
+    pid = new_id()
+    conn = get_connection()
+    conn.execute("INSERT INTO parameters (id, experiment_id, step_id, name, value, unit) VALUES (?, ?, ?, ?, ?, ?)",
+                 (pid, experiment_id, step_id, name, value, unit))
+    conn.commit()
+    conn.close()
+    return {"id": pid, "name": name}
+
+
+def list_parameters(experiment_id):
+    conn = get_connection()
+    rows = conn.execute("SELECT * FROM parameters WHERE experiment_id = ? ORDER BY name ASC", (experiment_id,)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def delete_parameter(pid):
+    conn = get_connection()
+    conn.execute("DELETE FROM parameters WHERE id = ?", (pid,))
+    conn.commit()
+    conn.close()
+
+
+# ====== 导出 ======
+
+def export_experiment_markdown(eid):
+    """导出实验为 Markdown 格式"""
+    exp = get_experiment(eid)
+    if not exp:
+        return ""
+
+    lines = []
+    lines.append(f"# {exp['title']}")
+    lines.append("")
+    if exp.get("purpose"):
+        lines.append(f"**实验目的：** {exp['purpose']}")
+        lines.append("")
+    lines.append(f"- **日期：** {exp.get('date', '')}")
+    lines.append(f"- **地点：** {exp.get('location', '')}")
+    lines.append(f"- **状态：** {status_label(exp.get('status', 'draft'))}")
+    lines.append(f"- **项目：** {exp.get('project_name', '')}")
+    lines.append("")
+
+    if exp.get("steps"):
+        lines.append("## 实验步骤")
+        lines.append("")
+        for i, s in enumerate(exp["steps"]):
+            lines.append(f"### {i+1}. {s['title']}")
+            if s.get("content"):
+                lines.append("")
+                lines.append(s["content"])
+            lines.append("")
+
+    # 参数
+    params = list_parameters(eid)
+    if params:
+        lines.append("## 参数")
+        lines.append("")
+        lines.append("| 名称 | 值 | 单位 |")
+        lines.append("|------|-----|------|")
+        for p in params:
+            lines.append(f"| {p['name']} | {p['value']} | {p['unit']} |")
+        lines.append("")
+
+    # 运行日志
+    logs = list_run_logs(eid)
+    if logs:
+        lines.append("## 运行日志")
+        lines.append("")
+        for log in logs:
+            lines.append(f"### v{log['version']} ({log.get('run_date', '')})")
+            if log.get("observations"):
+                lines.append(f"- **观察：** {log['observations']}")
+            if log.get("deviations"):
+                lines.append(f"- **偏差：** {log['deviations']}")
+            if log.get("conclusion"):
+                lines.append(f"- **结论：** {log['conclusion']}")
+            lines.append("")
+
+    if exp.get("results"):
+        lines.append("## 结果")
+        lines.append("")
+        for r in exp["results"]:
+            lines.append(f"- {r['content']}")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+def status_label(s):
+    return {"draft": "草稿", "submitted": "已提交", "archived": "已归档"}.get(s, s)
